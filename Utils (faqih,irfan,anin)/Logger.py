@@ -1,5 +1,8 @@
 import logging
 import os
+import time
+import requests
+import functools
 
 os.makedirs("logs", exist_ok=True)
 
@@ -21,3 +24,21 @@ console_handler.setFormatter(formatting)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
+def retry(max_attempts=3, delay=2):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            attempts = 0
+            while attempts < max_attempts:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    attempts += 1
+                    logger.warning(f"Attempt {attempts} failed: {e}")
+                    if attempts < max_attempts:
+                        time.sleep(delay)
+            logger.error(f"Function {func.__name__} failed after {max_attempts} attempts")
+        return wrapper
+    return decorator
+
+    
