@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import os
 import time
 import functools
@@ -16,7 +17,12 @@ if not logger.handlers:
         "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
         )
 
-file_handler = logging.FileHandler("logs/scraper.log")
+log_file_path = os.path.join(LOG_DIR, "scraper.log")
+
+file_handler = logging.handlers.RotatingFileHandler(
+    log_file_path, maxBytes=5*1024*1024, backupCount=3
+    )
+
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(formatting)
 
