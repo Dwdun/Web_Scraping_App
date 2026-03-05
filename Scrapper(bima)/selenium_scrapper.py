@@ -2,14 +2,109 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import json
-import os 
+import os
+import time
 
-# 1. Konfigurasi Khusus untuk Brave Browser
-options = Options()
-options.binary_location = '/usr/bin/brave-browser'
+def setup_driver():
+    """Konfigurasi dan return WebDriver untuk Brave Browser."""
+    options = Options()
+    options.binary_location = '/usr/bin/brave-browser'
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    
+    driver = webdriver.Chrome(options=options)
+    return driver
+
+def get_article_links(driver, url):
+    """Buka URL, tunggu halaman dimuat, lalu ambil dan filter link artikel dengan pagination."""
+    driver.get(url)
+    time.sleep(2)
+
+    from urllib.parse import urlparse
+    base_domain = urlparse(url).scheme + "://" + urlparse(url).netloc
+
+    keywords = ['/read/', '/artikel/', '/berita/', '/news/']
+    article_links = set()
+
+    while True:
+        elements = driver.find_elements(By.TAG_NAME, 'a')
+
+        for el in elements:
+            href = el.get_attribute('href')
+            if href and href.startswith(base_domain):
+                if any(kw in href for kw in keywords):
+                    article_links.add(href)
+
+        next_btn = None
+        try:
+            next_btn = driver.find_element(By.CSS_SELECTOR, 'a.next, a[rel="next"]')
+        except:
+            pass
+
+        if not next_btn:
+            try:
+                for el in driver.find_elements(By.TAG_NAME, 'a'):
+                    if el.text.strip() == '›':
+                        next_btn = el
+                        break
+            except:
+                pass
+
+        if next_btn:
+            next_btn.click()
+            time.sleep(2)
+        else:
+            break
+
+    print(f"Ditemukan {len(article_links)} link artikel.")
+    return list(article_links)
+
+def scrape_article(driver, url):
+    """Buka URL artikel dan ambil datanya."""
+    try:
+        driver.get(url)
+        time.sleep(1)
+
+        title_selectors = [
+            'h1', 'h1.title', 'h1.detail__title', 'h1.read__title',
+            'h1[itemprop="headline"]', '.article-title'
+        ]
+        judul = None
+        for sel in title_selectors:
+            els = driver.find_elements(By.CSS_SELECTOR, sel)
+            if els:
+                judul = els[0].text.strip()
+                break
+
+        date_selectors = [
+            'time', 'time[datetime]', '.date', '.publish-date',
+            '.detail__date', '[class*=date]', '[itemprop="datePublished"]'
+        ]
+        tanggal = None
+        for sel in date_selectors:
+            els = driver.find_elements(By.CSS_SELECTOR, sel)
+            if els:
+                tanggal = els[0].get_attribute('datetime') or els[0].text.strip()
+                break
+
+        if not judul:
+            return None
+
+        return {
+            'title': judul,
+            'date': tanggal,
+            'content': None,
+            'url': url
+        }
+
+    except Exception as e:
+        print(f"Gagal membuka {url}: {e}")
+        return None
 
 print("Memulai browser...")
-driver = webdriver.Chrome(options=options)
+driver = setup_driver()
 
 try:
     data_json = {}
@@ -23,18 +118,15 @@ try:
     if "list" not in data_json or not isinstance(data_json["list"], list):
         data_json["list"] = []
 
-    # 3. Buka halaman
     print("Membuka situs Detik...")
     driver.get('https://news.detik.com/indeks')
     driver.implicitly_wait(10)
 
-    # 4. Mencari Elemen
     judul_elemen = driver.find_elements(By.CSS_SELECTOR, 'div.media h3 a')
     waktu = driver.find_elements(By.CSS_SELECTOR, 'div.media div.media__date span')
     link_elemen = driver.find_elements(By.CSS_SELECTOR, 'div.media div.media__image a')
     gambar_elemen = driver.find_elements(By.CSS_SELECTOR, 'div.media div.media__image a span img')
 
-    # 5. Ekstrak dan Print Data
     print("\n=== 5 Berita Terbaru di Detik Saat Ini ===")
     batas = min(5, len(judul_elemen))
 
@@ -61,6 +153,5 @@ except Exception as e:
     print(f"\nTerjadi kesalahan: {e}")
 
 finally:
-    # 6. Tutup browser
     driver.quit()
     print("\nSelesai dan browser ditutup.")
