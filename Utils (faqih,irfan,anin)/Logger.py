@@ -1,17 +1,20 @@
 import logging
 import os
 import time
-import requests
 import functools
 
-os.makedirs("logs", exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
 
 logger = logging.getLogger("scraping_logger")
 logger.setLevel(logging.DEBUG)
 
-formatting = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-    )
+if not logger.handlers:
+    formatting = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        )
 
 file_handler = logging.FileHandler("logs/scraper.log")
 file_handler.setLevel(logging.DEBUG)
@@ -34,11 +37,12 @@ def retry(max_attempts=3, delay=2):
                     return func(*args, **kwargs)
                 except Exception as e:
                     attempts += 1
-                    logger.warning(f"Attempt {attempts} failed: {e}")
+                    logger.warning(f"Attempt {attempts} failed for {func.__name__}: {e}")
+                    
                     if attempts < max_attempts:
                         time.sleep(delay)
-            logger.error(f"Function {func.__name__} failed after {max_attempts} attempts")
+                    else:
+                        logger.error(f"Function {func.__name__} failed after {max_attempts} attempts")
+                        raise e
         return wrapper
     return decorator
-
-    
