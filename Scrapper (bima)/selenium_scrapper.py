@@ -18,7 +18,7 @@ def setup_driver():
     return driver
 
 def get_article_links(driver, url):
-    """Buka URL, tunggu halaman dimuat, lalu ambil dan filter link artikel."""
+    """Buka URL, tunggu halaman dimuat, lalu ambil dan filter link artikel dengan pagination."""
     driver.get(url)
     time.sleep(2)
 
@@ -26,16 +26,39 @@ def get_article_links(driver, url):
     base_domain = urlparse(url).scheme + "://" + urlparse(url).netloc
 
     keywords = ['/read/', '/artikel/', '/berita/', '/news/']
-
-    elements = driver.find_elements(By.TAG_NAME, 'a')
     article_links = set()
 
-    for el in elements:
-        href = el.get_attribute('href')
-        if href and href.startswith(base_domain):
-            if any(kw in href for kw in keywords):
-                article_links.add(href)
+    while True:
+        elements = driver.find_elements(By.TAG_NAME, 'a')
 
+        for el in elements:
+            href = el.get_attribute('href')
+            if href and href.startswith(base_domain):
+                if any(kw in href for kw in keywords):
+                    article_links.add(href)
+
+        next_btn = None
+        try:
+            next_btn = driver.find_element(By.CSS_SELECTOR, 'a.next, a[rel="next"]')
+        except:
+            pass
+
+        if not next_btn:
+            try:
+                for el in driver.find_elements(By.TAG_NAME, 'a'):
+                    if el.text.strip() == '›':
+                        next_btn = el
+                        break
+            except:
+                pass
+
+        if next_btn:
+            next_btn.click()
+            time.sleep(2)
+        else:
+            break
+
+    print(f"Ditemukan {len(article_links)} link artikel.")
     return list(article_links)
 
 print("Memulai browser...")
